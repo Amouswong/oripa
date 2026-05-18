@@ -2008,7 +2008,7 @@
         _detailItem: null,
         _detailSynonyms: {},  // { itemId: [synonyms] }
 
-        geminiApiKey: "AIzaSyCi2cPbmHOVwN_ZfoqpBNTSwdYdNs-1IjM",
+        geminiApiKey: null,
         newsArticle: null,
         chatHistory: [],
         newsLevel: "N5",
@@ -3285,12 +3285,10 @@
         },
 
         initNewsPage: function () {
-          // Always prefer the hardcoded key; only use localStorage if it looks like a Gemini key
           const stored = localStorage.getItem("kaizen_gemini_key");
           if (stored && stored.startsWith("AIza")) {
             this.geminiApiKey = stored;
           }
-          // else keep the hardcoded value already set on the object
           if (!this.geminiApiKey) {
             document.getElementById("news-key-setup").classList.remove("hidden");
             document.getElementById("news-main").classList.add("hidden");
@@ -3732,8 +3730,8 @@ pos must be exactly one of: 名詞, 動詞(Group 1), 動詞(Group 2), 動詞(Gro
 jlpt must be a number 1-5.
 For verbs (動詞), use ます form in both "word" and "reading" (e.g., 食べます/たべます not 食べる/たべる).`;
 
-          const raw = (await this._geminiChat([{ role: "user", content: prompt }], 200))
-            .replace(/^```json\n?|\n?```$/g, "").trim();
+          const raw = (await this._geminiChat([{ role: "user", content: prompt }], 500))
+            .replace(/[\s\S]*?(\{[\s\S]*\})[\s\S]*/m, "$1").trim();
           const result = JSON.parse(raw);
           if (result.pos && result.pos.includes('動詞')) {
             const normalized = this.normalizeMasuForm([result]);
