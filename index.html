@@ -278,7 +278,10 @@
 
     <!-- Prize List -->
     <div class="card rounded-xl p-4">
-      <div class="section-title">🏆 獎項設定</div>
+      <div class="section-title flex items-center justify-between">
+        <span>🏆 獎項設定</span>
+        <span id="prizeCountBadge" class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(255,203,5,0.15);color:#FFCB05;border:1px solid rgba(255,203,5,0.35)">0 項</span>
+      </div>
 
       <!-- Quick set row -->
       <div class="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-yellow-500/10">
@@ -655,10 +658,14 @@ function renderPrizeRow(prize) {
         onchange="updatePrize(${prize.id},'value',parseFloat(this.value)||0)"
         oninput="updatePrize(${prize.id},'value',parseFloat(this.value)||0)"
         class="pokemon-input rounded-lg px-2 py-2 text-sm min-w-0">
-      <input type="number" value="${prize.qty||''}" min="0" step="1" placeholder="數量"
-        onchange="updatePrize(${prize.id},'qty',parseInt(this.value)||0)"
-        oninput="updatePrize(${prize.id},'qty',parseInt(this.value)||0)"
-        class="pokemon-input rounded-lg px-2 py-2 text-sm min-w-0">
+      <div class="flex items-center gap-1 min-w-0">
+        <button onclick="stepQty(${prize.id},-1)" class="flex-shrink-0 w-7 h-8 rounded-lg text-sm font-bold flex items-center justify-center" style="background:rgba(255,203,5,0.15);border:1px solid rgba(255,203,5,0.3);color:#FFCB05">−</button>
+        <input type="number" id="qty-${prize.id}" value="${prize.qty||''}" min="0" step="1" placeholder="0"
+          onchange="updatePrize(${prize.id},'qty',parseInt(this.value)||0)"
+          oninput="updatePrize(${prize.id},'qty',parseInt(this.value)||0)"
+          class="pokemon-input rounded-lg px-1 py-2 text-sm text-center min-w-0 flex-1" style="min-width:36px">
+        <button onclick="stepQty(${prize.id},1)" class="flex-shrink-0 w-7 h-8 rounded-lg text-sm font-bold flex items-center justify-center" style="background:rgba(255,203,5,0.15);border:1px solid rgba(255,203,5,0.3);color:#FFCB05">＋</button>
+      </div>
       <button onclick="removePrize(${prize.id})" class="btn-danger w-8 h-8 rounded-lg text-sm flex items-center justify-center flex-shrink-0">✕</button>
     </div>`;
   container.appendChild(div);
@@ -668,9 +675,30 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function stepQty(id, delta) {
+  const p = prizes.find(p => p.id === id);
+  if (!p) return;
+  p.qty = Math.max(0, (parseInt(p.qty)||0) + delta);
+  const input = document.getElementById(`qty-${id}`);
+  if (input) input.value = p.qty;
+  recalc();
+}
+
 function updatePrize(id, field, val) {
   const p = prizes.find(p => p.id === id);
-  if (p) { p[field] = val; recalc(); }
+  if (p) {
+    p[field] = val;
+    if (field === 'value') sortAndRenderPrizes();
+    else recalc();
+  }
+}
+
+function sortAndRenderPrizes() {
+  prizes.sort((a, b) => (parseFloat(b.value)||0) - (parseFloat(a.value)||0));
+  const container = document.getElementById('prizeList');
+  container.innerHTML = '';
+  prizes.forEach(p => renderPrizeRow(p));
+  recalc();
 }
 
 function removePrize(id) {
@@ -697,6 +725,8 @@ function recalc() {
     ? 'linear-gradient(90deg,#f87171,#CC0000)'
     : 'linear-gradient(90deg, #FFCB05, #FF6B00)';
   document.getElementById('packUsageTxt').textContent = `${usedPacks} / ${totalPacks} 口`;
+  const badge = document.getElementById('prizeCountBadge');
+  if (badge) badge.textContent = prizes.length + ' 項';
 
   // Warning
   const warnEl = document.getElementById('packWarning');
