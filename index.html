@@ -163,6 +163,35 @@
     width: 100%; max-width: 360px;
   }
 
+  /* Oripa slots */
+  .slot-btn {
+    background: rgba(255,203,5,0.08);
+    border: 1px solid rgba(255,203,5,0.25);
+    color: rgba(255,255,255,0.75);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .slot-btn:hover { background: rgba(255,203,5,0.18); border-color: #FFCB05; color:#fff; }
+  .slot-btn.active { background: rgba(255,203,5,0.22); border-color: #FFCB05; color: #FFCB05; font-weight: 700; }
+  .slot-del {
+    background: rgba(204,0,0,0.15);
+    border: 1px solid rgba(204,0,0,0.35);
+    color: #f87171;
+    border-radius: 6px;
+    padding: 3px 7px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .slot-del:hover { background: rgba(204,0,0,0.4); }
+
   /* Quick set buttons */
   .quick-btn {
     background: rgba(255,203,5,0.1);
@@ -199,6 +228,17 @@
         📥 <span class="hidden sm:inline">匯入 </span>CSV
         <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden">
       </label>
+    </div>
+  </div>
+
+  <!-- Oripa Manager Bar -->
+  <div class="mt-3 card rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-2">
+    <span class="text-xs font-bold" style="color:#FFCB05">📂 我的オリパ：</span>
+    <div id="oripaTabsWrapper" class="flex flex-wrap gap-1.5 flex-1 min-w-0"></div>
+    <div class="flex gap-1.5 flex-shrink-0">
+      <button onclick="newOripa()" class="quick-btn text-xs px-2.5 py-1.5">＋ 新增</button>
+      <button onclick="renameOripa()" class="quick-btn text-xs px-2.5 py-1.5">✏️ 改名</button>
+      <button onclick="deleteOripa()" class="quick-btn text-xs px-2.5 py-1.5" style="color:#f87171;border-color:rgba(248,113,113,0.4)">🗑 刪除</button>
     </div>
   </div>
 </div>
@@ -428,10 +468,137 @@ let pieChart = null;
 let pieChartM = null;
 let prizeIdCounter = 0;
 
+// --- Oripa Storage ---
+const STORE_KEY = 'pokemon_oripa_list';
+let oripaList = []; // [{id, name, config}]
+let currentOripaId = null;
+
+function loadOripaStore() {
+  try { oripaList = JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch(e) { oripaList = []; }
+}
+
+function saveOripaStore() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(oripaList));
+}
+
+function getConfig() {
+  return {
+    packPrice: document.getElementById('packPrice').value,
+    totalPacks: document.getElementById('totalPacks').value,
+    currency: document.getElementById('currency').value,
+    remainderValue: document.getElementById('remainderValue').value,
+    prizes: prizes.map(p => ({ ...p }))
+  };
+}
+
+function applyConfig(cfg) {
+  if (!cfg) return;
+  if (cfg.packPrice !== undefined) document.getElementById('packPrice').value = cfg.packPrice;
+  if (cfg.totalPacks !== undefined) document.getElementById('totalPacks').value = cfg.totalPacks;
+  if (cfg.currency !== undefined) document.getElementById('currency').value = cfg.currency;
+  if (cfg.remainderValue !== undefined) document.getElementById('remainderValue').value = cfg.remainderValue;
+  prizes = [];
+  document.getElementById('prizeList').innerHTML = '';
+  prizeIdCounter = 0;
+  if (cfg.prizes && cfg.prizes.length > 0) {
+    cfg.prizes.forEach(p => {
+      const id = ++prizeIdCounter;
+      prizes.push({ ...p, id });
+      renderPrizeRow(prizes[prizes.length - 1]);
+    });
+  }
+  recalc();
+}
+
+function saveCurrentOripa() {
+  if (!currentOripaId) return;
+  const slot = oripaList.find(o => o.id === currentOripaId);
+  if (slot) { slot.config = getConfig(); saveOripaStore(); }
+}
+
+function renderOripaTabs() {
+  const wrapper = document.getElementById('oripaTabsWrapper');
+  if (!wrapper) return;
+  if (oripaList.length === 0) {
+    wrapper.innerHTML = '<span class="text-xs text-gray-500 italic">尚無儲存的オリパ</span>';
+    return;
+  }
+  wrapper.innerHTML = oripaList.map(o => `
+    <button onclick="switchOripa('${o.id}')"
+      class="slot-btn text-xs px-2.5 py-1 rounded-lg border transition-all ${o.id === currentOripaId
+        ? 'slot-btn-active'
+        : ''}"
+      style="${o.id === currentOripaId
+        ? 'background:rgba(255,203,5,0.25);border-color:#FFCB05;color:#FFCB05;font-weight:700;'
+        : 'background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);'}"
+    >${escHtml(o.name)}</button>
+  `).join('');
+}
+
+function newOripa() {
+  const name = prompt('新オリパ名稱：', `オリパ ${oripaList.length + 1}`);
+  if (!name) return;
+  saveCurrentOripa();
+  const id = 'oripa_' + Date.now();
+  const config = getConfig();
+  oripaList.push({ id, name, config });
+  currentOripaId = id;
+  saveOripaStore();
+  renderOripaTabs();
+}
+
+function switchOripa(id) {
+  if (id === currentOripaId) return;
+  saveCurrentOripa();
+  const slot = oripaList.find(o => o.id === id);
+  if (!slot) return;
+  currentOripaId = id;
+  applyConfig(slot.config);
+  renderOripaTabs();
+}
+
+function renameOripa() {
+  if (!currentOripaId) { alert('請先選擇或建立一個オリパ'); return; }
+  const slot = oripaList.find(o => o.id === currentOripaId);
+  if (!slot) return;
+  const name = prompt('新名稱：', slot.name);
+  if (!name) return;
+  slot.name = name;
+  saveOripaStore();
+  renderOripaTabs();
+}
+
+function deleteOripa() {
+  if (!currentOripaId) { alert('請先選擇一個オリパ'); return; }
+  const slot = oripaList.find(o => o.id === currentOripaId);
+  if (!slot) return;
+  if (!confirm(`確定刪除「${slot.name}」？`)) return;
+  oripaList = oripaList.filter(o => o.id !== currentOripaId);
+  currentOripaId = oripaList.length > 0 ? oripaList[oripaList.length - 1].id : null;
+  saveOripaStore();
+  if (currentOripaId) {
+    const next = oripaList.find(o => o.id === currentOripaId);
+    if (next) applyConfig(next.config);
+  }
+  renderOripaTabs();
+}
+
+// Auto-save on any recalc
+const _origRecalcHook = () => saveCurrentOripa();
+
 // --- Init ---
 function init() {
-  addPrize('', 0, 1);
-  recalc();
+  loadOripaStore();
+  renderOripaTabs();
+  // If there's a saved oripa, load the last one; otherwise start fresh
+  if (oripaList.length > 0) {
+    currentOripaId = oripaList[oripaList.length - 1].id;
+    applyConfig(oripaList[oripaList.length - 1].config);
+    renderOripaTabs();
+  } else {
+    addPrize('', 0, 1);
+    recalc();
+  }
 }
 
 // --- Bulk prize setting ---
@@ -601,6 +768,7 @@ function recalc() {
   });
 
   updateChart(pool, effectiveTotal, packPrice);
+  saveCurrentOripa();
 }
 
 function setEl(id, text, className) {
